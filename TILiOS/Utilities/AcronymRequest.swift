@@ -62,19 +62,29 @@ struct AcronymRequest {
         completion: @escaping (Result<Acronym, ResourceRequestError>) -> Void
     ) {
         do {
+            guard let token = Auth().token else {
+                Auth().logout()
+                return
+            }
             var urlRequest = URLRequest(url: resource)
             urlRequest.httpMethod = "PUT"
             urlRequest.httpBody = try JSONEncoder().encode(updateData)
             urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             let dataTask = URLSession.shared.dataTask(with: urlRequest) { data, response, _ in
-                guard
-                    let httpResponse = response as? HTTPURLResponse,
-                    httpResponse.statusCode == 200,
-                    let jsonData = data
-                else {
+                guard let httpResponse = response as? HTTPURLResponse else {
                     completion(.failure(.noData))
                     return
                 }
+                guard httpResponse.statusCode == 200,
+                      let jsonData = data else {
+                    if httpResponse.statusCode == 401 {
+                        Auth().logout()
+                    }
+                    completion(.failure(.noData))
+                    return
+                }
+                
                 do {
                     let acronym = try JSONDecoder().decode(Acronym.self, from: jsonData)
                     completion(.success(acronym))
@@ -89,8 +99,13 @@ struct AcronymRequest {
     }
     
     func delete() {
+        guard let token = Auth().token else {
+            Auth().logout()
+            return
+        }
         var urlRequest = URLRequest(url: resource)
         urlRequest.httpMethod = "DELETE"
+        urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let dataTask = URLSession.shared.dataTask(with: urlRequest)
         dataTask.resume()
     }
@@ -103,17 +118,27 @@ struct AcronymRequest {
             completion(.failure(.noID))
             return
         }
+        guard let token = Auth().token else {
+            Auth().logout()
+            return
+        }
         let url = resource
             .appendingPathComponent("categories")
             .appendingPathComponent("\(categoryID)")
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
+        urlRequest.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let dataTask = URLSession.shared
             .dataTask(with: urlRequest) { _, response, _ in
-                guard
-                    let httpResponse = response as? HTTPURLResponse,
-                    httpResponse.statusCode == 201
-                else {
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(.invalidResponse))
+                    return
+                }
+                
+                guard httpResponse.statusCode == 201 else {
+                    if httpResponse.statusCode == 401 {
+                        Auth().logout()
+                    }
                     completion(.failure(.invalidResponse))
                     return
                 }

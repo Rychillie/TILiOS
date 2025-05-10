@@ -9,9 +9,17 @@ import SwiftUI
 
 @main
 struct TILiOSApp: App {
+    @StateObject var auth = Auth()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if auth.isAuthenticated {
+                ContentView()
+                    .environmentObject(auth)
+            } else {
+                LoginView()
+                    .environmentObject(auth)
+            }
         }
     }
 }
